@@ -77,7 +77,7 @@ pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-s
 <div class="ver" id="ver"></div>
 
 <script>
-const VERSION = '0.0.5';
+const VERSION = '0.0.6';
 const SERVICE ='b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de001';
 const CMD     = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de002';
 const RESULT  = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de003';
@@ -108,6 +108,20 @@ function onDisc() {
   log('Déconnecté');
 }
 
+const withTimeout = (p, ms) => Promise.race([
+  p,
+  new Promise((_, rej) => setTimeout(() => rej(new Error('délai dépassé')), ms))
+]);
+
+async function openGatt(d) {
+  d.addEventListener('gattserverdisconnected', onDisc);
+  const server = await withTimeout(d.gatt.connect(), 10000);
+  const svc = await server.getPrimaryService(SERVICE);
+  cmdC = await svc.getCharacteristic(CMD);
+  resC = await svc.getCharacteristic(RESULT);
+  dev = d;
+}
+
 async function connect() {
   if (dev && dev.gatt.connected) { dev.gatt.disconnect(); return; }
   if (!navigator.bluetooth) {
@@ -115,14 +129,25 @@ async function connect() {
     return;
   }
   try {
-    dev = await navigator.bluetooth.requestDevice($('all').checked
-      ? { acceptAllDevices: true, optionalServices: [SERVICE] }
-      : { filters: [{ services: [SERVICE] }] });
-    dev.addEventListener('gattserverdisconnected', onDisc);
-    const server = await dev.gatt.connect();
-    const svc = await server.getPrimaryService(SERVICE);
-    cmdC = await svc.getCharacteristic(CMD);
-    resC = await svc.getCharacteristic(RESULT);
+    let ok = false;
+    const known = navigator.bluetooth.getDevices ? await navigator.bluetooth.getDevices() : [];
+    log(`Appareils déjà autorisés : ${known.length}`);
+    for (const d of known) {
+      try {
+        await openGatt(d);
+        ok = true;
+        log('Reconnecté à un appareil déjà autorisé');
+        break;
+      } catch (e) {
+        log('Appareil connu : ' + e.message);
+      }
+    }
+    if (!ok) {
+      const d = await navigator.bluetooth.requestDevice($('all').checked
+        ? { acceptAllDevices: true, optionalServices: [SERVICE] }
+        : { filters: [{ services: [SERVICE] }] });
+      await openGatt(d);
+    }
     setState(true);
     log('Connecté');
     send('status');
