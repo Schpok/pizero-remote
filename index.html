@@ -24,6 +24,7 @@ button:disabled{opacity:.4}
 h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 0 10px}
 pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-space:pre-wrap;max-height:180px;overflow:auto}
 #conn{width:auto;padding:10px 16px}
+.ver{position:fixed;right:12px;bottom:8px;font-size:12px;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -66,8 +67,11 @@ pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-s
   <pre id="log"></pre>
 </div>
 
+<div class="ver" id="ver"></div>
+
 <script>
-const SERVICE = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de001';
+const VERSION = '0.0.2';
+const SERVICE ='b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de001';
 const CMD     = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de002';
 const RESULT  = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de003';
 const $ = id => document.getElementById(id);
@@ -164,6 +168,7 @@ async function send(cmd) {
 }
 
 document.querySelectorAll('[data-cmd]').forEach(b => b.addEventListener('click', () => send(b.dataset.cmd)));
+$('ver').textContent = 'v' + VERSION;
 refreshButtons();
 </script>
 </body>
