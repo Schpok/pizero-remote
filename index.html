@@ -35,7 +35,7 @@ pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-s
   <div><span class="dot" id="dot"></span><span id="state">Déconnecté</span></div>
   <button id="conn" onclick="connect()">Connecter</button>
 </div>
-<label style="display:block;margin:-4px 4px 12px;font-size:13px;color:var(--mut)"><input type="checkbox" id="all"> Afficher tous les appareils BLE</label>
+<label style="display:block;margin:-4px 4px 12px;font-size:13px;color:var(--mut)"><input type="checkbox" id="all"> Forcer la liste de sélection (tous les appareils BLE)</label>
 
 <div class="card">
   <h2>État</h2>
@@ -77,7 +77,7 @@ pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-s
 <div class="ver" id="ver"></div>
 
 <script>
-const VERSION = '0.0.7';
+const VERSION = '0.0.8';
 const SERVICE ='b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de001';
 const CMD     = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de002';
 const RESULT  = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de003';
@@ -138,7 +138,8 @@ async function connect() {
   }
   try {
     let ok = false;
-    const known = navigator.bluetooth.getDevices ? await navigator.bluetooth.getDevices() : [];
+    const known = (!$('all').checked && navigator.bluetooth.getDevices)
+      ? await navigator.bluetooth.getDevices() : [];
     log(`Appareils déjà autorisés : ${known.length}`);
     for (const d of known) {
       try {
