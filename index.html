@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pi Zero Audit</title>
+<style>
+:root{--bg:#0f1115;--card:#181b22;--fg:#e8eaed;--mut:#8b93a1;--acc:#4f8cff;--ok:#3ecf8e;--bad:#ef5350;--bd:#262b36}
+@media (prefers-color-scheme:light){:root{--bg:#f4f5f7;--card:#fff;--fg:#14171c;--mut:#5d6675;--bd:#dfe3ea}}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;max-width:520px;margin-inline:auto;background:var(--bg);color:var(--fg);font:16px/1.4 -apple-system,system-ui,sans-serif}
+h1{font-size:20px;margin:4px 0 14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--bad);margin-right:8px}
+.dot.on{background:var(--ok)}
+button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:14px 10px;background:var(--acc);color:#fff;width:100%}
+button.sec{background:transparent;color:var(--fg);border:1px solid var(--bd)}
+button.danger{background:var(--bad)}
+button:disabled{opacity:.4}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px}
+.kv span:nth-child(odd){color:var(--mut)}
+h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 0 10px}
+pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-space:pre-wrap;max-height:180px;overflow:auto}
+#conn{width:auto;padding:10px 16px}
+</style>
+</head>
+<body>
+<h1>Pi Zero Audit</h1>
+
+<div class="card row">
+  <div><span class="dot" id="dot"></span><span id="state">Déconnecté</span></div>
+  <button id="conn" onclick="connect()">Connecter</button>
+</div>
+
+<div class="card">
+  <h2>État</h2>
+  <div class="kv">
+    <span>Batterie</span><span id="s-bat">–</span>
+    <span>WiFi</span><span id="s-wifi">–</span>
+    <span>IP</span><span id="s-ip">–</span>
+    <span>WireGuard</span><span id="s-wg">–</span>
+    <span>Scan</span><span id="s-scan">–</span>
+    <span>Température</span><span id="s-temp">–</span>
+    <span>Espace libre</span><span id="s-disk">–</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Actions</h2>
+  <div class="grid">
+    <button class="sec" data-cmd="status">Actualiser</button>
+    <span></span>
+    <button data-cmd="wg_on">WireGuard on</button>
+    <button class="sec" data-cmd="wg_off">WireGuard off</button>
+    <button data-cmd="scan_start">Lancer le scan</button>
+    <button class="sec" data-cmd="scan_stop">Arrêter le scan</button>
+    <button class="danger" data-cmd="reboot">Redémarrer</button>
+    <button class="danger" data-cmd="shutdown">Éteindre</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Journal</h2>
+  <pre id="log"></pre>
+</div>
+
+<script>
+const SERVICE = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de001';
+const CMD     = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de002';
+const RESULT  = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de003';
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let dev, cmdC, resC, busy = false;
+
+function log(m) {
+  const t = new Date().toLocaleTimeString('fr-CH');
+  $('log').textContent = `${t}  ${m}\n` + $('log').textContent;
+}
+
+function setState(on) {
+  $('dot').classList.toggle('on', on);
+  $('state').textContent = on ? 'Connecté' : 'Déconnecté';
+  $('conn').textContent = on ? 'Déconnecter' : 'Connecter';
+  refreshButtons();
+}
+
+function refreshButtons() {
+  const ok = !!(dev && dev.gatt.connected) && !busy;
+  document.querySelectorAll('[data-cmd]').forEach(b => b.disabled = !ok);
+}
+
+function onDisc() {
+  cmdC = resC = null;
+  setState(false);
+  log('Déconnecté');
+}
+
+async function connect() {
+  if (dev && dev.gatt.connected) { dev.gatt.disconnect(); return; }
+  if (!navigator.bluetooth) {
+    log('Web Bluetooth indisponible : ouvre cette page dans Bluefy.');
+    return;
+  }
+  try {
+    dev = await navigator.bluetooth.requestDevice({
+      filters: [{ name: 'pizero-audit' }],
+      optionalServices: [SERVICE]
+    });
+    dev.addEventListener('gattserverdisconnected', onDisc);
+    const server = await dev.gatt.connect();
+    const svc = await server.getPrimaryService(SERVICE);
+    cmdC = await svc.getCharacteristic(CMD);
+    resC = await svc.getCharacteristic(RESULT);
+    setState(true);
+    log('Connecté');
+    send('status');
+  } catch (e) {
+    log('Connexion : ' + e.message);
+    setState(false);
+  }
+}
+
+function showStatus(d) {
+  $('s-bat').textContent = d.bat == null ? '–' : d.bat + ' %';
+  $('s-wifi').textContent = d.wifi || 'non connecté';
+  $('s-ip').textContent = d.ip || '–';
+  $('s-wg').textContent = d.wg ? 'actif' : 'inactif';
+  $('s-scan').textContent = d.scan ? 'en cours' : 'arrêté';
+  $('s-temp').textContent = d.temp == null ? '–' : d.temp + ' °C';
+  $('s-disk').textContent = d.libre_go == null ? '–' : d.libre_go + ' Go';
+}
+
+async function send(cmd) {
+  if (!cmdC || busy) return;
+  if ((cmd === 'shutdown' || cmd === 'reboot') &&
+      !confirm(cmd === 'shutdown' ? 'Éteindre le Pi ?' : 'Redémarrer le Pi ?')) return;
+  busy = true; refreshButtons();
+  let done = false;
+  try {
+    const data = new TextEncoder().encode(cmd);
+    await (cmdC.writeValueWithResponse ? cmdC.writeValueWithResponse(data) : cmdC.writeValue(data));
+    for (let i = 0; i < 40 && !done; i++) {
+      await sleep(i ? 1000 : 400);
+      const v = await resC.readValue();
+      const r = JSON.parse(new TextDecoder().decode(v));
+      if (r.cmd === cmd && r.ok !== null) {
+        done = true;
+        if (cmd === 'status' && r.ok) {
+          showStatus(r.data);
+        } else {
+          log(`${cmd} : ${r.ok ? 'OK' : 'ÉCHEC'}` + (!r.ok && typeof r.data === 'string' ? ' — ' + r.data : ''));
+          if (r.ok && cmd !== 'shutdown' && cmd !== 'reboot') setTimeout(() => send('status'), 500);
+        }
+      }
+    }
+    if (!done) log(`${cmd} : pas de réponse`);
+  } catch (e) {
+    log(`${cmd} : ${e.message}`);
+  } finally {
+    busy = false; refreshButtons();
+  }
+}
+
+document.querySelectorAll('[data-cmd]').forEach(b => b.addEventListener('click', () => send(b.dataset.cmd)));
+refreshButtons();
+</script>
+</body>
+</html>
