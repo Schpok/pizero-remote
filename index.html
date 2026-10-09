@@ -77,7 +77,7 @@ pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-s
 <div class="ver" id="ver"></div>
 
 <script>
-const VERSION = '0.0.11';
+const VERSION = '0.0.12';
 const SERVICE ='b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de001';
 const CMD     = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de002';
 const RESULT  = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de003';
@@ -131,7 +131,11 @@ async function openGatt(d) {
 }
 
 async function connect() {
-  if (dev && dev.gatt.connected) { dev.gatt.disconnect(); return; }
+  if (dev && dev.gatt.connected) {
+    if (cmdC && !busy) { await send('bye'); await sleep(1500); }
+    try { dev.gatt.disconnect(); } catch (_) {}
+    return;
+  }
   if (!navigator.bluetooth) {
     log('Web Bluetooth indisponible : ouvre cette page dans Bluefy.');
     return;
@@ -241,7 +245,7 @@ async function send(full) {
           showWifi(r.data);
         } else {
           log(`${cmd} : ${r.ok ? 'OK' : 'ÉCHEC'}` + (typeof r.data === 'string' ? ' — ' + r.data : ''));
-          if (r.ok && cmd !== 'shutdown' && cmd !== 'reboot') setTimeout(() => send('status'), 500);
+          if (r.ok && cmd !== 'shutdown' && cmd !== 'reboot' && cmd !== 'bye') setTimeout(() => send('status'), 500);
         }
       }
     }
@@ -254,7 +258,7 @@ async function send(full) {
 }
 
 document.querySelectorAll('[data-cmd]').forEach(b => b.addEventListener('click', () => send(b.dataset.cmd)));
-const closeLink = () => { try { if (dev && dev.gatt.connected) dev.gatt.disconnect(); } catch (_) {} };
+const closeLink = () => { try { if (cmdC) cmdC.writeValueWithoutResponse ? cmdC.writeValue(new TextEncoder().encode('bye')) : 0; if (dev && dev.gatt.connected) dev.gatt.disconnect(); } catch (_) {} };
 window.addEventListener('pagehide', closeLink);
 window.addEventListener('beforeunload', closeLink);
 $('ver').textContent = 'v' + VERSION;
