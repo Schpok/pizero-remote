@@ -77,13 +77,21 @@ pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-s
 <div class="ver" id="ver"></div>
 
 <script>
-const VERSION = '0.0.6';
+const VERSION = '0.0.7';
 const SERVICE ='b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de001';
 const CMD     = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de002';
 const RESULT  = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de003';
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let dev, cmdC, resC, busy = false;
+
+function errText(e) {
+  if (!e) return 'erreur inconnue';
+  if (typeof e === 'string') return e;
+  let s = e.message || e.name || '';
+  if (!s) { try { s = JSON.stringify(e); } catch (_) {} }
+  return s && s !== '{}' ? s : String(e);
+}
 
 function log(m) {
   const t = new Date().toLocaleTimeString('fr-CH');
@@ -139,7 +147,7 @@ async function connect() {
         log('Reconnecté à un appareil déjà autorisé');
         break;
       } catch (e) {
-        log('Appareil connu : ' + e.message);
+        log('Appareil connu : ' + errText(e));
       }
     }
     if (!ok) {
@@ -152,7 +160,7 @@ async function connect() {
     log('Connecté');
     send('status');
   } catch (e) {
-    log('Connexion : ' + e.message);
+    log('Connexion : ' + errText(e));
     setState(false);
   }
 }
@@ -222,7 +230,7 @@ async function send(cmd) {
     }
     if (!done) log(`${cmd} : pas de réponse`);
   } catch (e) {
-    log(`${cmd} : ${e.message}`);
+    log(`${cmd} : ${errText(e)}`);
   } finally {
     busy = false; refreshButtons();
   }
