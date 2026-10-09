@@ -15,7 +15,8 @@ h1{font-size:20px;margin:4px 0 14px}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--bad);margin-right:8px}
 .dot.on{background:var(--ok)}
 button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:14px 10px;background:var(--acc);color:#fff;width:100%}
-button.sec{background:transparent;color:var(--fg);border:1px solid var(--bd)}
+button.sec{background:transparent;color:var(--fg);border:1px solid var(--mut)}
+button.refresh{border-color:var(--acc);color:var(--acc)}
 button.danger{background:var(--bad)}
 button:disabled{opacity:.4}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -51,8 +52,7 @@ pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-s
 <div class="card">
   <h2>Actions</h2>
   <div class="grid">
-    <button class="sec" data-cmd="status">Actualiser</button>
-    <span></span>
+    <button class="sec refresh" data-cmd="status" style="grid-column:1/-1">Actualiser</button>
     <button data-cmd="wg_on">WireGuard on</button>
     <button class="sec" data-cmd="wg_off">WireGuard off</button>
     <button data-cmd="scan_start">Lancer le scan</button>
@@ -63,6 +63,12 @@ pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-s
 </div>
 
 <div class="card">
+  <h2>Réseaux WiFi</h2>
+  <button class="sec" data-cmd="wifi_scan">Scanner les réseaux</button>
+  <div id="wifi-list" style="margin-top:10px"></div>
+</div>
+
+<div class="card">
   <h2>Journal</h2>
   <pre id="log"></pre>
 </div>
@@ -70,7 +76,7 @@ pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-s
 <div class="ver" id="ver"></div>
 
 <script>
-const VERSION = '0.0.2';
+const VERSION = '0.0.4';
 const SERVICE ='b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de001';
 const CMD     = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de002';
 const RESULT  = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de003';
@@ -126,7 +132,35 @@ async function connect() {
   }
 }
 
+function setPrimary(onCmd, offCmd, active) {
+  document.querySelector(`[data-cmd="${onCmd}"]`).classList.toggle('sec', active);
+  document.querySelector(`[data-cmd="${offCmd}"]`).classList.toggle('sec', !active);
+}
+
+const KIND = { psk: 'WPA', open: 'ouvert', eap: 'entreprise (non géré)' };
+
+function showWifi(nets) {
+  const box = $('wifi-list');
+  box.replaceChildren();
+  if (!nets.length) { box.textContent = 'Aucun réseau trouvé'; return; }
+  nets.forEach(n => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.cssText = 'padding:8px 0;border-top:1px solid var(--bd)';
+    const name = document.createElement('span');
+    name.textContent = n.s;
+    const info = document.createElement('span');
+    info.style.cssText = 'color:var(--mut);font-size:13px;text-align:right';
+    info.textContent = `${n.d} dBm · ${KIND[n.k] || n.k}`;
+    row.append(name, info);
+    box.append(row);
+  });
+  log(`wifi_scan : ${nets.length} réseau(x)`);
+}
+
 function showStatus(d) {
+  setPrimary('wg_on', 'wg_off', d.wg);
+  setPrimary('scan_start', 'scan_stop', d.scan);
   $('s-bat').textContent = d.bat == null ? '–' : d.bat + ' %';
   $('s-wifi').textContent = d.wifi || 'non connecté';
   $('s-ip').textContent = d.ip || '–';
@@ -153,6 +187,8 @@ async function send(cmd) {
         done = true;
         if (cmd === 'status' && r.ok) {
           showStatus(r.data);
+        } else if (cmd === 'wifi_scan' && r.ok) {
+          showWifi(r.data);
         } else {
           log(`${cmd} : ${r.ok ? 'OK' : 'ÉCHEC'}` + (!r.ok && typeof r.data === 'string' ? ' — ' + r.data : ''));
           if (r.ok && cmd !== 'shutdown' && cmd !== 'reboot') setTimeout(() => send('status'), 500);
