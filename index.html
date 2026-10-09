@@ -105,7 +105,7 @@ async function connect() {
   }
   try {
     dev = await navigator.bluetooth.requestDevice({
-      filters: [{ name: 'pizero-audit' }],
+      acceptAllDevices: true,
       optionalServices: [SERVICE]
     });
     dev.addEventListener('gattserverdisconnected', onDisc);
