@@ -77,7 +77,7 @@ pre{margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--mut);white-s
 <div class="ver" id="ver"></div>
 
 <script>
-const VERSION = '0.0.10';
+const VERSION = '0.0.11';
 const SERVICE ='b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de001';
 const CMD     = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de002';
 const RESULT  = 'b1a5e000-5d6e-4c1a-9a3b-0a1d5c0de003';
@@ -254,6 +254,9 @@ async function send(full) {
 }
 
 document.querySelectorAll('[data-cmd]').forEach(b => b.addEventListener('click', () => send(b.dataset.cmd)));
+const closeLink = () => { try { if (dev && dev.gatt.connected) dev.gatt.disconnect(); } catch (_) {} };
+window.addEventListener('pagehide', closeLink);
+window.addEventListener('beforeunload', closeLink);
 $('ver').textContent = 'v' + VERSION;
 refreshButtons();
 </script>
